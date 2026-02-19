@@ -23,55 +23,49 @@ const io = new Server<
   cors: { origin: '*' },
 });
 
+// playersUpdateに渡す用のヘルパー（socketIdを除外）
+const toPublic = (players: Player[]) =>
+  players.map(({ name, confirmed }) => ({ name, confirmed }));
+
 io.on('connection', (socket) => {
   console.log('connected:', socket.id);
 
   let currentRoomId: string | null = null;
 
-// ===== ルーム参加 =====
-socket.on('joinRoom', (roomId) => {
-  currentRoomId = roomId;
-  socket.join(roomId);
+  // ===== ルーム参加 =====
+  socket.on('joinRoom', (roomId) => {
+    currentRoomId = roomId;
+    socket.join(roomId);
 
-  // ルームがなければ4席作る
-  if (!rooms[roomId]) {
-    rooms[roomId] = Array.from({ length: 4 }, () => ({
-      socketId: null,
-      name: '',
-      confirmed: false,
-    }));
-  }
-
-
-  const players = rooms[roomId];
-
-  // ★ 上から順番に空席を探す
-  let index = -1;
-  for (let i = 0; i < players.length; i++) {
-    const p = players[i];
-    if (!p) continue;
-    if (p.socketId === null) {
-      index = i;
-      break;
+    // ルームがなければ空で作る
+    if (!rooms[roomId]) {
+      rooms[roomId] = [];
     }
-  }
 
-  if (index === -1) return;
+    const players = rooms[roomId];
 
-  const assigned = players[index];
-  if (!assigned) return;
-  assigned.socketId = socket.id;
+    // 既にこの socketId が登録済みなら重複追加しない（StrictMode対策）
+    const alreadyIndex = players.findIndex((p) => p.socketId === socket.id);
+    if (alreadyIndex !== -1) {
+      socket.emit('assigned', alreadyIndex);
+      socket.emit('playersUpdate', toPublic(players));
+      return;
+    }
 
-  socket.emit('assigned', index);
-  io.to(roomId).emit(
-    'playersUpdate',
-    rooms[roomId].map(({ name, confirmed }) => ({
-      name,
-      confirmed,
-    }))
-  );
-});
+    // 満席チェック（最大4人）
+    if (players.length >= 4) {
+      socket.emit('assigned', -1);
+      socket.emit('playersUpdate', toPublic(players));
+      return;
+    }
 
+    // 新しい席を末尾に追加
+    const index = players.length;
+    players.push({ socketId: socket.id, name: '', confirmed: false });
+
+    socket.emit('assigned', index);
+    io.to(roomId).emit('playersUpdate', toPublic(players));
+  });
 
   // ===== 名前更新 =====
   socket.on('updateName', (index, name) => {
@@ -80,10 +74,10 @@ socket.on('joinRoom', (roomId) => {
     if (!players) return;
     const player = players[index];
     if (!player) return;
-    if (player.socketId === socket.id) {
-      player.name = name;
-      io.to(currentRoomId).emit('playersUpdate', players);
-    }
+    if (player.socketId !== socket.id) return;
+
+    player.name = name;
+    io.to(currentRoomId).emit('playersUpdate', toPublic(players));
   });
 
   // ===== 確定 / キャンセル =====
@@ -93,10 +87,10 @@ socket.on('joinRoom', (roomId) => {
     if (!players) return;
     const player = players[index];
     if (!player) return;
-    if (player.socketId === socket.id) {
-      player.confirmed = !player.confirmed;
-      io.to(currentRoomId).emit('playersUpdate', players);
-    }
+    if (player.socketId !== socket.id) return;
+
+    player.confirmed = !player.confirmed;
+    io.to(currentRoomId).emit('playersUpdate', toPublic(players));
   });
 
   // ===== 切断 =====
@@ -104,36 +98,27 @@ socket.on('joinRoom', (roomId) => {
     if (!currentRoomId) return;
     const players = rooms[currentRoomId];
     if (!players) return;
-    const player = players.find(
-      (p) => p.socketId === socket.id
-    );
-    if (player) {
-      player.socketId = null;
-      player.name = '';
-      player.confirmed = false;
-      io.to(currentRoomId).emit('playersUpdate', players);
+    const idx = players.findIndex((p) => p.socketId === socket.id);
+    if (idx !== -1) {
+      // 席を削除して詰める
+      players.splice(idx, 1);
+      io.to(currentRoomId).emit('playersUpdate', toPublic(players));
     }
   });
+
   // ===== ゲーム開始 =====
-socket.on('startGame', (roomId) => {
-  const players = rooms[roomId];
-  if (!players) return;
+  socket.on('startGame', (roomId) => {
+    const players = rooms[roomId];
+    if (!players) return;
 
-  // 参加している人数（socketIdあり）
-  const activePlayers = players.filter(p => p.socketId !== null);
+    const activePlayers = players.filter((p) => p.socketId !== null);
 
-  // 3人以上いるか
-  if (activePlayers.length < 3) return;
+    if (activePlayers.length < 3) return;
+    if (!activePlayers.every((p) => p.confirmed)) return;
+    if (players[0]?.socketId !== socket.id) return;
 
-  // 参加者全員 confirmed しているか
-  const allConfirmed = activePlayers.every(p => p.confirmed);
-  if (!allConfirmed) return;
-
-  // ホスト（index 0）のみ開始可能
-  if (players[0]?.socketId !== socket.id) return;
-
-  io.to(roomId).emit('gameStarted');
-});
+    io.to(roomId).emit('gameStarted');
+  });
 });
 
 httpServer.listen(3001, () => {
