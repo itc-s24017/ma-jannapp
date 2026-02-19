@@ -16,8 +16,6 @@ const SocketContext = createContext<TypedSocket | null>(null);
 
 export const useSocket = () => useContext(SocketContext);
 
-const socket = io("https://ma-jannapp-qc4t.onrender.com");
-
 export function SocketProvider({
   children,
 }: {
@@ -26,7 +24,7 @@ export function SocketProvider({
   const [socket, setSocket] = useState<TypedSocket | null>(null);
 
   useEffect(() => {
-    const s: TypedSocket = io('http://localhost:3001');
+    const s: TypedSocket = io('https://ma-jannapp-qc4t.onrender.com');
     setSocket(s);
 
     return () => {
