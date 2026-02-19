@@ -47,8 +47,8 @@ export default function RoomPage() {
 
   const activePlayers = players.filter(p => p.name !== '');
 
-  const allConfirmed =
-    activePlayers.length >= 3 &&
+const allConfirmed =
+  activePlayers.length >= 1 &&
   activePlayers.every(p => p.confirmed);
 
   const isHost = myIndex === 0;

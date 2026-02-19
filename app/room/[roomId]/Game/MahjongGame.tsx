@@ -1,5 +1,5 @@
 // MahjongGame.tsx
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 // =====================================================================
 //  型定義
@@ -437,6 +437,7 @@ function createInitialState(): GameState {
 //  メインコンポーネント
 // =====================================================================
 export default function MahjongGame() {
+  const socket = useSocket();
   const [gs, setGs] = useState<GameState>(createInitialState);
   const [status, setStatus] = useState("牌を選んで捨ててください");
   const [notification, setNotification] = useState("");
