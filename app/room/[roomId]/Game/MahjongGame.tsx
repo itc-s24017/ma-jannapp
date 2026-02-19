@@ -1,5 +1,6 @@
 // MahjongGame.tsx
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSocket } from '../../../contexts/SocketContext';
 
 // =====================================================================
 //  型定義

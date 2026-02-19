@@ -120,7 +120,7 @@ io.on('connection', (socket) => {
 
     const activePlayers = players.filter((p) => p.socketId !== null);
 
-    if (activePlayers.length < 3) return;
+    if (activePlayers.length < 1) return;
     if (!activePlayers.every((p) => p.confirmed)) return;
     if (players[0]?.socketId !== socket.id) return;
 
